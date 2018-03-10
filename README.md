@@ -54,11 +54,12 @@ List only open times from database (default : JSON Format, can be specified with
 */listCloseOnly*  
 List only close times from database (default : JSON Format, can be specified with appending /json or /csv to URL)
 
-*NEW*
-Now Requires username input.  
+*NEW* 
+**REQUIRED** 
+Now REQUIRES username input.  
 Usage: Append ?username=username to display info from database.
 
-*Sort Results by Shortest Times*
+*Sort Results by Shortest Times*  
 The 'top' URL variable can be changed to display only top x times.  Works with any previous URL.  
 Usage: Append ?username=username&top=x to display top x times  
 
