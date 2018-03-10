@@ -1,79 +1,91 @@
-# Project 7: Authenticated brevet time calculator service
+# Project 6: Brevet time calculator service
 
-## What is in this repository
+## Author Information
 
-You have a minimal implementation of password- and token-based authentication modules in "Auth" folder, using which you can create authenticated REST API-based services (as demonstrated in class). 
+Name: Michael Welch  
+Email: michael.welch.99@gmail.com
 
-## Recap 
+## About
 
-You will reuse *your* code from project
-6 (https://github.com/UOCIS322/proj6-rest). Recall: you created the 
-following three parts: 
+The Brevet Control Time Calculator uses the specifications given by the ACP.
 
-* You designed RESTful services to expose what is stored in MongoDB.
-Specifically, you used the boilerplate given in DockerRestAPI folder, and
-created the following:
+The Open and Close Times are calculated using the table specified by the ACP found here - https://rusa.org/octime_alg.html
 
-** "http://<host:port>/listAll" should return all open and close times in the database
+The Official ACP Form Based Calculator is located here - https://rusa.org/octime_acp.html
 
-** "http://<host:port>/listOpenOnly" should return open times only
+## Update
 
-** "http://<host:port>/listCloseOnly" should return close times only
+Now has different users with username and hashed password stored in database.
 
-* You also designed two different representations: one in csv and one 
- in json. For the above, JSON should be your default representation. 
+New UI
 
-** "http://<host:port>/listAll/csv" should return all open and close times in CSV format
+Database and RESTFUL API have per user data
 
-** "http://<host:port>/listOpenOnly/csv" should return open times only in CSV format
+Now implements RESTFUL API  
 
-** "http://<host:port>/listCloseOnly/csv" should return close times only in CSV format
+### How to Create Account
 
-** "http://<host:port>/listAll/json" should return all open and close times in JSON format
+Fill out the fields with username and password. Hit Register New User.  
 
-** "http://<host:port>/listOpenOnly/json" should return open times only in JSON format
+If successful, it will display in text underneath.  
 
-** "http://<host:port>/listCloseOnly/json" should return close times only in JSON format
+After registering, log back in with username and password.  
 
-* You also added a query parameter to get top "k" open and close
-times. For examples, see below.
+### How to Use UI
 
-** "http://<host:port>/listOpenOnly/csv?top=3" should return top 3 open times only (in ascending order) in CSV format 
+Enter in all control distances, and brevet information.  
 
-** "http://<host:port>/listOpenOnly/json?top=5" should return top 5 open times only (in ascending order) in JSON format
+Then hit the Submit to Database Button.  It will pop up with an alert.  
 
-* You'll also designed consumer programs (e.g., in jQuery) to expose the services.
+Then select choices for output format.  
 
-## Functionality you will add
+Finally, hit display database to look at data in the formate selected above.  
 
-In this project, you will add the following functionality:
+### How to Expose Data
 
-- POST **/api/register**
+Adding the following extensions to the URL will output data in either JSON or csv format.  
 
-    Registers a new user. On success a status code 201 is returned. The body of the response contains
-a JSON object with the newly added user. Add a `Location` field to the response: it should contain the new user ID. On failure status code 400 (bad request) is returned. Note: The 
-password is hashed before it is stored in the database. Once hashed, the original 
-password is discarded. Your database should have three fields: id (unique index),
-username and password. 
+*/listAll*  
+List all open and close times from database (default : JSON Format, can be specified with appending /json or /csv to URL)
 
-- GET **/api/token**
+*/listOpenOnly*  
+List only open times from database (default : JSON Format, can be specified with appending /json or /csv to URL)
 
-    Returns a token. This request must be authenticated using a HTTP Basic
-Authentication (see password.py for example). On success a JSON object is returned 
-with a field `token` set to the authentication token for the user and 
-a field `duration` set to the (approximate) number of seconds the token is 
-valid. On failure status code 401 (unauthorized) is returned.
+*/listCloseOnly*  
+List only close times from database (default : JSON Format, can be specified with appending /json or /csv to URL)
 
-- GET **/RESOURCE-YOU-CREATED-IN-PROJECT-6**
+*NEW*
+Now Requires username input.  
+Usage: Append ?username=username to display info from database.
 
-    Return a protected <resource>, which is basically what you created in project 6. This request must be authenticated using token-based authentication only (see testToken.py). HTTP password-based (basic) authentication is not allowed. On success the resources that you created in last project (for the authenticated user) is returned. On failure status code 401 (unauthorized) is returned.
+*Sort Results by Shortest Times*
+The 'top' URL variable can be changed to display only top x times.  Works with any previous URL.  
+Usage: Append ?username=username&top=x to display top x times  
 
-## Tasks
+## Specifics
 
-You'll turn in your credentials.ini using which we will get the following:
+Calculating the Open and Close Times is done by taking the Control Distance and dividing by the number specified by the table.  
+Ex: 150km
 
-* The working application with three parts.
+    Max Speed from 0 - 200km = 34: Open Time = 150/34 = 04H24M
+    Min Speed from 0 - 600km = 15: Close Time = 150/15 = 10H00M
 
-* Dockerfile
+If a Control Distance spans over multiple ranges in the table then the Open and Close Times are calculated as follows.  
+Ex: 650km
 
-* docker-compose.yml
+    Max Speed from 0 - 200km = 34: 200/34 = 05H52M
+    Max Speed from 200 - 400km = 32: 200/32 = 06H15M
+    Max Speed from 400 - 600km = 30: 200/30 = 06H40M
+    Max Speed from 600 - 1000km = 28: 50/28 = 01H47M
+    Open Time = 05H52M + 06H15M + 06H40M + 01H47M = 20H34M
+
+    Min Speed from 0 - 600km = 15: 600/15 = 40H00M
+    Min Speed from 600 - 1000km = 11.428: 50/11.428 = 04H22M
+    Close Time = 40H00M + 04H22M = 44H22M
+
+The Maximum Control Distance is 20% Longer than the Brevet Distance (Ex: For a 200km Brevet, 240km is the Maximum Control Distance).  
+For any Control in this Range, the Open and Close times are equal to the Brevet Distance Open and Close Times.
+
+For a Control at 0km, the Open Time is equal to the Brevet Start Time and the Close Time is equal to the Brevet Start Time plus 1 Hour.  
+This means that Controls at small distanes could have Closing Times earlier than the Closing Time at the Control at 0km.
+
