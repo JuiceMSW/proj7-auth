@@ -1,0 +1,374 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html> <head>
+<title>ACP Controle Times</title>
+
+  <!-- 'viewport' is used by bootstrap to respond to device size -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Javascript:  JQuery from a content distribution network (CDN) -->
+  <script
+     src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js">
+  </script>
+
+  <!-- Bootstrap includes javascript and css  (must follow jquery) -->
+  <link rel="stylesheet"
+   href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+   <script
+    src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js">
+   </script>
+
+  <!-- moment.js is the JavaScript equivalent of arrow.py -->
+  <script 
+    src="{{ url_for('static', filename="js/moment.min.js") }}">
+      
+  </script>
+
+</head>
+
+   <!-- Our own style sheet -->
+   <link rel="stylesheet" href="/static/css/calc.css" />
+
+<body>
+<!-- bootstrap requires a 'container' div around content -->
+<div class="container">
+
+<h1>ACP Brevet Times</h1>
+  <input name="username" type="text" value="" placeholder="Username" />
+  <br/>
+  <input name="password" type="password" value="" placeholder="Password" />
+  <br/>
+  <input type=button value="Register New User" onclick="register_user();" />
+  <input type=button value="Login" onclick="login();" />
+  <br/>
+  <h4>Current User</h4>
+  <p id="currentUser"></p>
+  <br/>
+  <p>This worksheet is for ACP-sanctioned brevets between 200 and 1000 kilometers</p>
+
+  <!--
+  -- If there are any warnings or other messages from a prior
+  -- request to the server, 
+  -- they appear above the rest of the content, just until the next 
+  -- action.  (This is only on request/response transactions that
+  -- result in regenerating the page, not on every xmlhttp request.) 
+  -->
+
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    <ul class=flashes>
+    {% for message in messages %}
+      <li>{{ message }}</li>
+    {% endfor %}
+    </ul>
+  {% endif %}
+{% endwith %}
+
+<!-- Design on bootstrap grid -->
+<form role="form">
+<div class="row">
+  <div class="col-md-4">
+    <label>Distance <i>(Changing this Clears Table)</i></label>
+  <select name="distance" id="brevet_dist_km">
+    <option value="200">200km</option>
+    <option value="300">300km</option>
+    <option value="400">400km</option>
+    <option value="600">600km</option>
+    <option value="1000">1000km</option>
+  </select>
+  </div> <!-- columns 1--4  -->
+  <div class="col-md-6">
+    <label>Begins at <i>(Changing these Clears Table)</i></label>
+    <input type=date name="begin_date" id="begin_date" value="2017-01-01" />
+    <input type=time name="begin_time" id="begin_time" value="00:00"    />
+  </div> <!-- columns 5-10 -->
+  <br/>
+  <input type=button value="Submit to Database" onclick="submit_db();" />
+  <br/>
+  <p>Display</p>
+  <form action="">
+    <input type="radio" name="listAll" value="List All Times"> List All Times<br>
+    <input type="radio" name="listOpen" value="List Open Times Only"> List Open Times Only<br>
+    <input type="radio" name="listClose" value="List Close Times Only"> List Close Times Only
+  </form>
+  <p>Format</p>
+  <form action="">
+    <input type="radio" name="json" value="JSON"> JSON<br>
+    <input type="radio" name="csv" value="CSV"> CSV<br>
+  </form>
+  <input type="number" name="topK"> Search for Top "X" Times
+  <br/>
+  <input type=button value="Display from Databse" onclick="display_db();" />
+  <br/>
+  </div> <!-- row -->
+
+  <br />  <!-- Cosmetic -- a little vertical space -->
+  <!-- Although we do not use tables for general page layout, they are
+       appropriate for something that really is a table, like this
+       one.  We allocate it the full 12 columns of the bootstrap grid.
+  -->
+  <div class="row">
+  <div class="col-md-12"> 
+  <table class="control_time_table">
+      <tr>
+	<th> Miles </th>
+	<th> Km </th>
+	<th>Location</th>
+	<th>Open</th>
+	<th>Close</th>
+      </tr>
+   {% for row in range(20) %}
+    <tr class="control">
+      <!-- Dist (mi) -->
+      <td><input name="miles" type="number" 
+           min="0" max="900" size="5" /></td>
+      <!-- Dist (km) -->
+      <td><input name="km" type="number"
+	   min="0" max="1100" size="5" /> </td>
+      <!-- Location (optional) -->
+      <td><input name="location" type="text" 
+        placeholder="Optional location name"
+	size="20" /> </td>
+      <!-- Open time (read only, set by JavaScript function -->
+      <td><input name="open" type="datetime" value="" readonly /></td>
+      <!-- Close time (read only, set by JavaScript function -->
+      <td><input name="close" type="datetime" value="" readonly /></td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div> <!-- col -->
+  </div> <!-- row -->
+  <h3>Notes</h3>
+  <p id="notes"></p>
+</form>
+
+<script type="text/javascript">
+
+  var SCRIPT_ROOT = {{ request.script_root|tojson|safe }} ;
+  var TIME_CALC_URL = SCRIPT_ROOT + "/_calc_times";
+
+  // Pass calctimes a <td> element containing the data for a control.
+  // It extracts the distance and calls the server to get times to
+  // fill in open and close times in a human-readable format.
+  // (If we want to also keep the ISO-formatted times, we'll need to
+  // stash them in hidden fields.) 
+  function format_time(time) {
+    var month_index = time.indexOf("-");
+    var month = time.substring(month_index + 1, month_index + 3);
+    var day_index = time.lastIndexOf("-");
+    var day = time.substring(day_index + 1, day_index + 3);
+    var hour_index = time.indexOf("T");
+    var hour = time.substring(hour_index + 1, hour_index + 3);
+    var min_index = time.indexOf(":");
+    var min = time.substring(min_index + 1, min_index + 3);
+
+    var formated_time = " " + month + "/" + day + " " + hour + ":" + min;
+
+    return formated_time;
+  }
+
+  // https://stackoverflow.com/questions/7157632/how-do-i-get-values-of-input-element-with-the-same-name-as-an-javascript-array/7157670#7157670
+  // Used to help look through table
+  function submit_db() {
+    var username = document.getElementById("currentUser").innerHTML;
+    var miles = "";
+    var km = "";
+    var open = "";
+    var close = "";
+    $("input[name='miles']").each(function() {
+      if ($(this).val() != "") {
+        miles += $(this).val() + "|";
+      }
+    });
+    $("input[name='km']").each(function() {
+      if ($(this).val() != "") {
+        km += $(this).val() + "|";
+      }
+    });
+    $("input[name='open']").each(function() {
+      if ($(this).val() != "") {
+        open += $(this).val() + "|";
+      }
+    });
+    $("input[name='close']").each(function() {
+      if ($(this).val() != "") {
+        close += $(this).val() + "|";
+      }
+    });
+
+    $.getJSON(SCRIPT_ROOT + "/_submit_times_db", {
+      username: username,
+      miles: miles,
+      km: km,
+      open: open,
+      close: close
+    });
+    alert("Submited To Database, Press Display to View");
+  }
+
+  //https://stackoverflow.com/questions/14853779/adding-input-elements-dynamically-to-form
+  //Used to generate button
+  function display_db() {
+    var url = "";
+
+    if ($("input[name='listAll']").is(":checked")) {
+      url = "/listAll";
+    } else if ($("input[name='listOpen']").is(":checked")) {
+      url = "/listOpenOnly";
+    } else if ($("input[name='listClose']").is(":checked")) {
+      url = "/listCloseOnly";
+    }
+
+    if ($("input[name='json']").is(":checked")) {
+      url += "/json";
+    } else if ($("input[name='csv']").is(":checked")) {
+      url += "/csv";
+    }
+
+    k = $("input[name='topK']").val();
+    username = document.getElementById("currentUser").innerHTML;
+    console.log(username);
+
+    console.log("URL: " + url);
+
+    $.getJSON(SCRIPT_ROOT + url, {
+      username: username,
+      top: k
+    },
+      function(data) {
+        window.open().document.write(data.result);
+      }
+    )
+  }
+
+
+  function calc_times(control, brevet, start_info) {
+    var km = control.find("input[name='km']").val();
+    var open_time_field = control.find("input[name='open']");
+    var close_time_field = control.find("input[name='close']");
+    var notes = document.getElementById("notes");
+    
+    $.getJSON(TIME_CALC_URL, {
+      km: km,
+      brevet: brevet,
+      start_info: start_info
+    }, 
+      // response handler
+      function(data) {
+        var times = data.result;
+        console.log("Got a response: " +  times);
+        console.log("Response.open = " + times.open);
+        console.log("Response.close = " + times.close);
+        if (times.open.includes("Error")) { //If an error is sent print it in notes
+          open_time_field.val("Error");
+          close_time_field.val("Error");
+          notes.innerHTML = times.open;
+        } else {
+          open_time_field.val(format_time(times.open));
+          close_time_field.val(format_time(times.close));
+          notes.innerHTML = "";
+        }
+       } // end of handler function
+     );// End of getJSON
+    }
+
+  function register_user() {
+    var username = $("input[name='username']").val();
+    var password = $("input[name='password']").val();
+    $.getJSON(SCRIPT_ROOT + "/api/register", {
+      username: username,
+      password: password
+    },
+      function(data) {
+        $("input[name='username']").val("");
+        $("input[name='password']").val("");
+        document.getElementById("currentUser").innerHTML = "Account Creation Successful. <br/>Log in again with username: " + username + " and your password";
+      }
+    )
+  }
+
+  function login() {
+    var username = $("input[name='username']").val();
+    var password = $("input[name='password']").val();
+    $.getJSON(SCRIPT_ROOT + "/api/token", {
+      username: username,
+      password: password
+    },
+      function(data) {
+        document.getElementById("currentUser").innerHTML = username;
+      }
+    )
+  }
+
+  $(document).ready(function(){
+   // Do the following when the page is finished loading
+
+      function clear() {
+        $("input[name=miles").val("");
+        $("input[name=km").val("");
+        $("input[name=location").val("");
+        $("input[name=open").val("");
+        $("input[name=close").val("");
+        document.getElementById("notes").innerHTML = "";
+      };
+
+      //When Brevet Distance Changes, clear Table
+      $("#brevet_dist_km").change(
+        function() {
+          clear();
+        }
+      );
+
+      $("input[name='begin_date']").change(
+        function() {
+          clear();
+        }
+      );
+
+      $("input[name='begin_time']").change(
+        function() {
+          clear();
+        }
+      );
+
+      $('input[name="miles"]').change(
+         function() {
+            var miles = parseFloat($(this).val());
+            var km = (1.609344 * miles).toFixed(1) ;
+            console.log("Converted " + miles + " miles to " + km + " kilometers");
+            var control_entry = $(this).parents(".control")
+            console.log("Control Entry: " + control_entry);
+            var brevet_entry = $("#brevet_dist_km").val();
+            var start_date = $("#begin_date").val();
+            var start_time = $("#begin_time").val();
+            var start_info = start_date + " " + start_time;
+            console.log("Starting Info " + start_info);
+            var target = control_entry.find("input[name='km']");
+            target.val( km );
+            // Then calculate times for this entry
+            calc_times(control_entry, brevet_entry, start_info);
+          });
+
+      $('input[name="km"]').change(
+         function() {
+            var km = parseFloat($(this).val());
+            var miles = (0.621371 * km).toFixed(1) ;
+            console.log("Converted " + km + " km to " + miles + " miles");
+            var control_entry = $(this).parents(".control")
+            console.log("Control Entry: " + control_entry);
+            var brevet_entry = $("#brevet_dist_km").val();
+            var start_date = $("#begin_date").val();
+            var start_time = $("#begin_time").val();
+            var start_info = start_date + " " + start_time;
+            console.log("Starting Info " + start_info);
+            var target = control_entry.find("input[name='miles']");
+            target.val( miles );
+            // Then calculate times for this entry
+            calc_times(control_entry, brevet_entry, start_info);
+          });
+
+     });   // end of what we do on document ready
+
+</script>
+
+</div>
+</body> </html>
