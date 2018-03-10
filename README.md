@@ -54,8 +54,7 @@ List only open times from database (default : JSON Format, can be specified with
 */listCloseOnly*  
 List only close times from database (default : JSON Format, can be specified with appending /json or /csv to URL)
 
-*NEW* 
-**REQUIRED** 
+*NEW* **REQUIRED**  
 Now REQUIRES username input.  
 Usage: Append ?username=username to display info from database.
 
