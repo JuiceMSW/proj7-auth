@@ -1,4 +1,4 @@
-# Project 6: Brevet time calculator service
+# Project 7: Brevet time calculator service (Now With Users!)
 
 ## Author Information
 
